@@ -1,94 +1,442 @@
-# Yahtzee AI Agent — Evaluation Report
+# Yahtzee AI Agent
+## Implementation and Evaluation Report
 
-## 1. Introduction
+**Programming Language:** Python 3.11  
+**Main Algorithm:** Expectimax Search  
+**Project Type:** Artificial Intelligence — Game-Playing Agent
 
-This project implements an intelligent agent for the Yahtzee dice game using the Expectimax search algorithm.
+---
+
+# 1. Introduction
+
+This project presents the design and implementation of an intelligent agent for the Yahtzee dice game using the Expectimax search algorithm.
+
+Yahtzee is a dice game in which players roll five dice up to three times per turn and select one of thirteen scoring categories. The objective is to maximize the total score by making strategic decisions under uncertainty.
 
 The agent evaluates possible dice-keeping and reroll actions, considers probabilistic dice outcomes, and selects a scoring category based on the current game state.
 
 The main objectives of this project are:
 
 - Implement a complete 13-round Yahtzee game.
-- Develop an Expectimax-based decision-making agent.
+- Develop an intelligent agent based on game-tree search.
 - Model dice outcomes using exact probabilities.
-- Improve search efficiency using pruning and memoization.
+- Implement heuristic evaluation for non-terminal game states.
+- Improve search efficiency through pruning and memoization.
+- Implement the Yahtzee bonus and Joker rules.
 - Evaluate the agent against alternative strategies.
-- Analyze the effectiveness and limitations of the implemented optimizations.
+- Analyze the performance and limitations of the implemented methods.
 
-## 2. System Architecture
+# 2. System Architecture
 
-The project is organized into several modules, each responsible for a specific part of the system.
+The project follows a modular architecture. Each module is responsible for a specific part of the game or decision-making process.
+
+## 2.1 Main Components
 
 | Module | Responsibility |
 |---|---|
-| `game_state.py` | Represents and validates the game state. |
-| `scoring.py` | Calculates scores for all Yahtzee categories. |
-| `game_engine.py` | Handles rerolls and scoring operations. |
+| `game_state.py` | Represents and validates the current game state. |
+| `scoring.py` | Calculates scores for all thirteen categories. |
+| `game_engine.py` | Handles dice rerolls and scoring operations. |
 | `dice_probability.py` | Generates possible dice outcomes and their probabilities. |
 | `strategy.py` | Generates legal dice-keeping actions. |
-| `expectimax.py` | Implements Expectimax search and decision-making. |
+| `expectimax.py` | Implements Expectimax search, pruning, and memoization. |
 | `heuristic.py` | Estimates the value of non-terminal game states. |
-| `pruning.py` | Reserved module; pruning is implemented in `expectimax.py`. |
 | `greedy_agent.py` | Implements a greedy baseline agent. |
 | `simulation.py` | Runs complete game simulations. |
-| `json_interface.py` | Processes JSON-based requests. |
+| `json_interface.py` | Processes JSON-based requests and generates responses. |
 | `main.py` | Provides the main program entry point. |
 
-### 2.1 Expectimax Search
+Additional directories:
+
+- `tests/`: Automated tests for the project components.
+- `benchmarks/`: Scripts for performance evaluation and agent comparison.
+
+## 2.2 Game State Representation
+
+The game state stores the information required to make decisions, including:
+
+- Current dice values.
+- Current turn number.
+- Current roll number.
+- The scorecard.
+- Accumulated upper-section score.
+- Accumulated Yahtzee bonus.
+- Remaining scoring categories.
+
+The scorecard contains thirteen categories. Each category can be selected only once during a game.
+
+The implementation also validates important game-state properties, such as dice values, turn numbers, roll numbers, and scorecard values.
+
+## 2.3 Scoring System
+
+The implementation supports the thirteen standard Yahtzee scoring categories.
+
+### Upper Section
+
+- Ones
+- Twos
+- Threes
+- Fours
+- Fives
+- Sixes
+
+The upper-section bonus awards 35 additional points when the sum of the upper-section categories reaches at least 63 points.
+
+### Lower Section
+
+- Three of a Kind
+- Four of a Kind
+- Full House
+- Small Straight
+- Large Straight
+- Yahtzee
+- Chance
+
+The scoring module calculates the score for each category according to the game rules.
+
+## 2.4 Yahtzee Bonus and Joker Rules
+
+The project also implements special Yahtzee rules.
+
+A Yahtzee occurs when all five dice show the same value.
+
+If the Yahtzee category has already been scored with 50 points, additional Yahtzees can award a 100-point bonus.
+
+The Joker rules are also considered when determining the legal scoring categories for qualifying Yahtzee states.
+
+# 3. Expectimax Search Algorithm
 
 The main decision-making algorithm is Expectimax.
 
-It uses two types of nodes:
+Unlike a simple greedy strategy, Expectimax considers possible future dice outcomes and calculates their expected values.
 
-- **Max nodes:** Select the action with the highest expected value.
-- **Chance nodes:** Calculate the expected value of possible dice outcomes using their probabilities.
+The search tree contains two main types of nodes.
 
-The search evaluates decisions within the current turn. After selecting a scoring category, a heuristic function estimates the value of the resulting game state rather than searching the entire remaining game tree.
+### 3.1 Max Nodes
 
-### 2.2 Probability Model
+Max nodes represent the agent's decisions.
 
-Dice outcomes are generated using combinations with replacement.
+The agent evaluates the available actions and selects the action with the highest expected value.
 
-The implementation uses exact probabilities represented by Python's `Fraction` type. This avoids floating-point approximation errors when calculating the probabilities of unordered dice outcomes.
+These actions include:
 
-### 2.3 Search Optimizations
+- Keeping selected dice.
+- Rerolling the remaining dice.
+- Selecting a scoring category when the agent decides to end the turn.
 
-Two optimizations are implemented:
+### 3.2 Chance Nodes
 
-- **Pruning:** An optimistic upper bound is used to eliminate chance outcomes that cannot improve the current best decision.
-- **Memoization:** Previously evaluated states are cached to avoid repeated calculations.
+Chance nodes represent random dice outcomes.
 
-These optimizations aim to reduce unnecessary search work while preserving the selected action in the tested cases.
+Since dice rolls are uncertain, the agent calculates the expected value of possible outcomes using their probabilities.
 
-### 2.4 Heuristic Evaluation
+The expected value is calculated as:
 
-The heuristic estimates the value of a non-terminal game state using information such as:
+\[
+EV(s)=\sum_i P(o_i)V(o_i)
+\]
+
+Where:
+
+- \(P(o_i)\) is the probability of outcome \(o_i\).
+- \(V(o_i)\) is the estimated value of that outcome.
+- \(EV(s)\) is the expected value of the current state.
+
+### 3.3 Search Horizon
+
+The Expectimax search evaluates decisions within the current turn.
+
+After the agent selects a scoring category, the heuristic function estimates the value of the resulting game state.
+
+Therefore, the implementation does not search the entire remaining 13-round game tree. It uses heuristic evaluation to estimate future game value.
+
+# 4. Probability Model
+
+The project models dice outcomes using combinations with replacement.
+
+Instead of generating every ordered permutation, the implementation generates distinct unordered dice outcomes and calculates their corresponding probabilities.
+
+The probabilities are represented using Python's `Fraction` type.
+
+This approach provides exact rational probabilities and avoids floating-point approximation errors during probability calculations.
+
+The probability model is used by Expectimax to evaluate possible reroll outcomes.
+
+# 5. Heuristic Evaluation
+
+Expectimax requires an evaluation function to estimate the value of non-terminal game states.
+
+The project's heuristic considers information such as:
 
 - Current accumulated score.
 - Expected values of unfilled scoring categories.
 - The possibility of obtaining the upper-section bonus.
+- Whether the upper-section bonus has already been earned.
 
-The upper-section bonus is not counted again once it has already been earned.
+The heuristic provides an estimate of future scoring potential rather than an exact prediction of the final score.
 
-## 3. Experimental Methodology
+An important correction in the implementation prevents the upper-section bonus from being counted again after it has already been earned.
+
+# 6. Search Optimizations
+
+Two main optimization techniques are implemented: pruning and memoization.
+
+## 6.1 Pruning
+
+The implementation uses an optimistic upper bound to eliminate chance outcomes that cannot improve the current best decision.
+
+The remaining possible outcomes are considered in descending order of probability.
+
+When the optimistic bound indicates that evaluating additional outcomes cannot improve the current decision, the remaining outcomes can be skipped.
+
+The purpose of pruning is to reduce unnecessary recursive evaluations.
+
+## 6.2 Memoization
+
+Memoization stores previously evaluated states in a cache.
+
+When the same state is encountered again, its previously calculated value can be reused instead of performing the same search again.
+
+The state key includes relevant information such as:
+
+- Sorted dice values.
+- Current turn and roll.
+- Scorecard.
+- Upper-section total.
+- Yahtzee bonus.
+- Legal scoring categories.
+
+Memoization and pruning are separate optimization techniques and are both used to improve search efficiency.
+
+# 7. How to Run
+
+## 7.1 Prerequisites
+
+The following software is required:
+
+- Python 3.11 or later.
+- Git (optional, for cloning the repository).
+
+The commands in this section are written for Windows PowerShell.
+
+## 7.2 Clone the Repository
+
+Clone the project from GitHub:
+
+```powershell
+git clone https://github.com/sophiedlk/YahtzeeAI.git
+```
+
+Navigate to the project directory:
+
+```powershell
+cd YahtzeeAI
+```
+
+Alternatively, download the repository as a ZIP file from GitHub and extract it.
+
+## 7.3 Create a Virtual Environment
+
+Create a Python virtual environment:
+
+```powershell
+python -m venv .venv
+```
+
+Activate the environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks script execution, use the following alternative to run Python without activating the environment:
+
+```powershell
+.\.venv\Scripts\python.exe --version
+```
+
+## 7.4 Install Dependencies
+
+Install the packages listed in `requirements.txt`:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+## 7.5 Run the Main Program
+
+Start the program:
+
+```powershell
+python main.py
+```
+
+The program reads JSON requests from standard input and writes JSON responses to standard output.
+
+It uses a JSON Lines (JSONL) interface. Each request must be provided on a separate line.
+
+The program may wait for input after starting. This is expected behavior because it processes requests from standard input.
+
+## 7.6 Run Automated Tests
+
+To execute the complete test suite:
+
+```powershell
+python -m pytest -v
+```
+
+The recorded test execution produced:
+
+**160 passed, 0 failed**
+
+Execution time: approximately 20.72 seconds.
+
+## 7.7 Run Benchmarks
+
+Benchmark scripts are available in the `benchmarks/` directory.
+
+For example, to compare the three agents:
+
+```powershell
+python benchmarks/benchmark_three_agents.py
+```
+
+To evaluate full-game pruning performance:
+
+```powershell
+python benchmarks/benchmark_full_game_pruning.py
+```
+
+To compare heuristic versions:
+
+```powershell
+python benchmarks/benchmark_heuristics.py
+```
+
+To run the pruning benchmark:
+
+```powershell
+python benchmarks/benchmark_pruning.py
+```
+
+Benchmark execution may take several minutes depending on the computer and the number of simulated games.
+
+# 8. JSON Interface
+
+The agent communicates through a JSON Lines (JSONL) interface.
+
+Each input line contains one JSON request. The program processes the request and returns a JSON response on a separate output line.
+
+## 8.1 Request Structure
+
+The request includes information about the current game state.
+
+The main fields are:
+
+| Field | Description |
+|---|---|
+| `version` | Protocol version. |
+| `turn` | Current turn number (1–13). |
+| `roll` | Current roll number (1–3). |
+| `dice` | Current values of the five dice. |
+| `scorecard` | Scores for the thirteen categories; unfilled categories use `null`. |
+| `upper_total` | Accumulated upper-section score. |
+| `yahtzee_bonus` | Accumulated Yahtzee bonus. |
+| `legal_categories` | Available scoring categories. |
+
+## 8.2 Example Request
+
+The following is an illustrative request for the first turn:
+
+```json
+{
+  "version": 1,
+  "turn": 1,
+  "roll": 1,
+  "dice": [1, 2, 3, 4, 5],
+  "scorecard": {
+    "ones": null,
+    "twos": null,
+    "threes": null,
+    "fours": null,
+    "fives": null,
+    "sixes": null,
+    "three_of_a_kind": null,
+    "four_of_a_kind": null,
+    "full_house": null,
+    "small_straight": null,
+    "large_straight": null,
+    "yahtzee": null,
+    "chance": null
+  },
+  "upper_total": 0,
+  "yahtzee_bonus": 0,
+  "legal_categories": [
+    "ones",
+    "twos",
+    "threes",
+    "fours",
+    "fives",
+    "sixes",
+    "three_of_a_kind",
+    "four_of_a_kind",
+    "full_house",
+    "small_straight",
+    "large_straight",
+    "yahtzee",
+    "chance"
+  ]
+}
+```
+
+## 8.3 Response Structure
+
+The agent can return one of two action types:
+
+- `score`: Selects a scoring category.
+- `reroll`: Specifies the dice indices that should be rerolled.
+
+The exact action depends on the agent's evaluation of the supplied state.
+
+For example, a scoring response has the following structure:
+
+```json
+{
+  "action": "score",
+  "category": "large_straight"
+}
+```
+
+A reroll response has the following general structure:
+
+```json
+{
+  "action": "reroll",
+  "dice_indices": [0, 1]
+}
+```
+
+The example responses illustrate the response format; the actual decision depends on the input state and the agent's search evaluation.
+
+Multiple requests can be processed during one program execution, with one response generated for each valid input line.
+
+# 9. Experimental Methodology
 
 The agent was evaluated through simulation experiments.
 
-The experiments focused on three main questions:
+Three main experiments were conducted to assess decision quality and computational efficiency.
 
-1. How does Expectimax perform compared with simpler agents?
-2. How much computational work does pruning eliminate?
-3. Does the modified heuristic improve the agent's decisions or final scores?
-
-### 3.1 Agent Comparison
+## 9.1 Agent Comparison
 
 Three agents were evaluated:
 
-- Expectimax
-- Greedy
-- Random
+1. Expectimax
+2. Greedy
+3. Random
 
-All agents played using the same set of 50 game seeds, from 3000 to 3049.
+The experiment consisted of 50 games using seeds 3000–3049.
+
+The same set of seeds was used for the agents to provide a reproducible comparison.
 
 The evaluation metrics included:
 
@@ -98,11 +446,11 @@ The evaluation metrics included:
 - Average execution time.
 - Number of wins and draws.
 
-### 3.2 Pruning Evaluation
+## 9.2 Pruning Evaluation
 
 The pruning experiment compared Expectimax with pruning enabled and disabled.
 
-Five games were simulated using seeds 4000 to 4004.
+Five games were simulated using seeds 4000–4004.
 
 The following metrics were recorded:
 
@@ -112,11 +460,11 @@ The following metrics were recorded:
 - Evaluated chance outcomes.
 - Number of pruned outcomes.
 
-This is a preliminary evaluation based on a small sample of games.
+This experiment provides preliminary evidence about the effect of pruning.
 
-### 3.3 Heuristic Evaluation
+## 9.3 Heuristic Evaluation
 
-The baseline and modified heuristic versions were compared over 20 games using seeds 6000 to 6019.
+The baseline and modified heuristic versions were compared over 20 games using seeds 6000–6019.
 
 The experiment measured:
 
@@ -127,9 +475,9 @@ The experiment measured:
 
 A total of 730 decisions were compared.
 
-## 4. Experimental Results
+# 10. Experimental Results
 
-### 4.1 Expectimax vs. Greedy vs. Random
+## 10.1 Expectimax vs. Greedy vs. Random
 
 The following results were obtained over 50 games.
 
@@ -141,7 +489,7 @@ The following results were obtained over 50 games.
 | Maximum score | 422 | 324 | 138 |
 | Average runtime (seconds) | 25.7430 | 1.0855 | 0.0023 |
 
-Win distribution:
+### Win Distribution
 
 | Agent | Wins |
 |---|---:|
@@ -150,13 +498,13 @@ Win distribution:
 | Random | 0 |
 | Draws | 2 |
 
-Average score differences:
+### Average Score Differences
 
 - Expectimax vs. Greedy: +21.94 points.
 - Expectimax vs. Random: +192.76 points.
 - Greedy vs. Random: +170.82 points.
 
-**Analysis**
+### Analysis
 
 Expectimax achieved the highest average and median scores among the three agents.
 
@@ -166,7 +514,7 @@ These results indicate that probabilistic search provides a substantial performa
 
 However, Expectimax requires significantly more computation time than the simpler agents.
 
-### 4.2 Pruning Performance
+## 10.2 Pruning Performance
 
 The following results were obtained over five games.
 
@@ -184,17 +532,19 @@ Additional results:
 - Runtime speedup: approximately 1.04x.
 - Expanded-node reduction: approximately 2.35%.
 
-**Analysis**
+### Analysis
 
 Pruning reduced the number of evaluated chance outcomes by 7.22%.
 
-The average final score remained unchanged in this five-game experiment. Runtime improved slightly, with an approximate speedup of 1.04x.
+The average final score remained unchanged in this five-game experiment.
 
-The results suggest that pruning reduces search work, although the observed runtime improvement is modest.
+Runtime improved slightly, with an approximate speedup of 1.04x.
 
-Because the experiment contains only five games, these results should be considered preliminary rather than proof of equivalence or performance improvement for every possible game state.
+These results suggest that pruning reduces search work, although the observed runtime improvement is modest.
 
-### 4.3 Heuristic Comparison
+Because the experiment contains only five games, the results should be considered preliminary rather than proof of equivalence or performance improvement for every possible game state.
+
+## 10.3 Heuristic Comparison
 
 The baseline and modified heuristic versions were evaluated over 20 games.
 
@@ -204,7 +554,7 @@ The baseline and modified heuristic versions were evaluated over 20 games.
 | Runtime (seconds) | 26.00 | 30.50 |
 | Expanded nodes | 9,391 | 9,391 |
 
-Decision comparison:
+### Decision Comparison
 
 | Metric | Result |
 |---|---:|
@@ -212,7 +562,7 @@ Decision comparison:
 | Identical decisions | 730 |
 | Different decisions | 0 |
 
-**Analysis**
+### Analysis
 
 Both heuristic versions produced identical decisions in all 730 comparisons.
 
@@ -224,7 +574,7 @@ The modified version also had a higher recorded runtime in this run. Runtime mea
 
 The results indicate that further heuristic refinement and more diverse evaluation states may be necessary to demonstrate a measurable improvement.
 
-## 5. Automated Testing
+# 11. Automated Testing
 
 The project includes automated tests covering the main components:
 
@@ -248,41 +598,41 @@ Execution time: approximately 20.72 seconds.
 
 These results demonstrate that the implemented test cases passed successfully. They do not guarantee the absence of every possible defect.
 
-## 6. Limitations
+# 12. Limitations
 
-Despite the results, the project has several limitations.
+Despite the experimental results, the project has several limitations.
 
-### 6.1 Limited Search Horizon
+## 12.1 Limited Search Horizon
 
-Expectimax searches decisions within the current turn rather than exploring the complete 13-round game tree.
+Expectimax searches decisions within the current turn rather than exploring the complete remaining 13-round game tree.
 
 The heuristic function estimates the future value of the game state after a category is selected.
 
-### 6.2 Heuristic Accuracy
+## 12.2 Heuristic Accuracy
 
 The heuristic uses estimated category values and bonus-related information.
 
 These estimates do not represent an exact solution to the remaining game.
 
-### 6.3 Computational Cost
+## 12.3 Computational Cost
 
-Expectimax is substantially slower than Greedy and Random agents.
+Expectimax is substantially slower than the Greedy and Random agents.
 
 This is an expected trade-off when using probabilistic search to evaluate possible future outcomes.
 
-### 6.4 Pruning Improvement
+## 12.4 Pruning Improvement
 
 Although pruning reduces the number of evaluated chance outcomes, the measured runtime improvement is relatively small.
 
 Further optimization may be necessary to achieve a more significant speedup.
 
-### 6.5 Experimental Sample Size
+## 12.5 Experimental Sample Size
 
 The pruning experiment uses only five games, while the heuristic experiment uses 20 games.
 
 Larger experiments and additional game states would provide stronger evidence about the general performance of these methods.
 
-## 7. Future Improvements
+# 13. Future Improvements
 
 Possible directions for future development include:
 
@@ -292,8 +642,9 @@ Possible directions for future development include:
 - Optimizing memoization and state representation.
 - Comparing additional search strategies.
 - Improving the balance between decision quality and execution time.
+- Expanding the JSON interface documentation with additional request and response examples.
 
-## 8. Conclusion
+# 14. Conclusion
 
 This project demonstrates the implementation of a Yahtzee-playing agent based on Expectimax search.
 
@@ -307,8 +658,13 @@ Overall, the project combines game-tree search, probability modeling, heuristic 
 
 ---
 
-**Project:** Yahtzee AI Agent  
-**Language:** Python 3.11  
-**Main Algorithm:** Expectimax  
-**Evaluation:** Simulation-based benchmarking and automated testing  
-**Repository:** https://github.com/sophiedlk/YahtzeeAI
+## Project Information
+
+- **Project:** Yahtzee AI Agent
+- **Language:** Python 3.11
+- **Main Algorithm:** Expectimax
+- **Search Optimizations:** Pruning and Memoization
+- **Probability Representation:** Python Fraction
+- **Testing:** Pytest
+- **Evaluation:** Simulation-based benchmarking
+- **Repository:** https://github.com/sophiedlk/YahtzeeAI
